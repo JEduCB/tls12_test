@@ -70,7 +70,7 @@ void* process_request(void* args)
 
     ret = BIO_do_connect(bio);
 
-    char buf[MAX_PAYLOAD + 128 + 1]; //MAX_PAYLOAD and enough space for the HTTP header.
+    //char buf[MAX_PAYLOAD + 128 + 1]; //MAX_PAYLOAD and enough space for the HTTP header.
     long offset = {0};
 
     if (ret <= 0)
@@ -86,42 +86,41 @@ void* process_request(void* args)
         fprintf(stderr, "SSL_do_handshake failed: %s\n", ERR_error_string(ERR_get_error(), NULL));
         goto exit;
     }
+//     sprintf(buf, "GET / HTTP/1.1\r\n"
+//         "User-Agent: Wget/1.17.1 (linux-gnu)\r\n"
+//         "Accept: */*\r\n"
+//         "Accept-Encoding: identity\r\n"
+//         "Host: %s:%d\r\n"
+//         "\r\n", params->hostname, params->portnum);
 
-    sprintf(buf, "GET / HTTP/1.1\r\n"
-        "User-Agent: Wget/1.17.1 (linux-gnu)\r\n"
-        "Accept: */*\r\n"
-        "Accept-Encoding: identity\r\n"
-        "Host: %s:%d\r\n"
-        "\r\n", params->hostname, params->portnum);
+//     ret = SSL_write(ssl, buf, strlen(buf)); /* encrypt & send message */
 
-    ret = SSL_write(ssl, buf, strlen(buf)); /* encrypt & send message */
+//     if (ret <= 0)
+//     {
+//         fprintf(stderr, "SSL_write failed: %s\n", ERR_error_string(ERR_get_error(), NULL));
+//         goto exit;
+//     }
 
-    if (ret <= 0)
-    {
-        fprintf(stderr, "SSL_write failed: %s\n", ERR_error_string(ERR_get_error(), NULL));
-        goto exit;
-    }
+//     do
+//     {
+//         ret = SSL_read(ssl, buf + offset, sizeof(buf) - offset);
 
-    do
-    {
-        ret = SSL_read(ssl, buf + offset, sizeof(buf) - offset);
+//         if (ret <= 0)
+//         {
+//             fprintf(stderr, "SSL_read failed: %s\n", ERR_error_string(ERR_get_error(), NULL));
+//             goto exit;
+//         }
 
-        if (ret <= 0)
-        {
-            fprintf(stderr, "SSL_read failed: %s\n", ERR_error_string(ERR_get_error(), NULL));
-            goto exit;
-        }
-
-        offset += ret;
-        buf[offset] = 0;
-    } while (!strstr(buf, "</html>\n"));
+//         offset += ret;
+//         buf[offset] = 0;
+//     } while (ret > 0);//!strstr(buf, "</html>\n"));
 
 exit:
-    if(!offset) //Some error's ocurred
-    {
-        BIO_free_all(bio);
-        LOCAL_ABORT();
-    }
+//     // if(!offset) //Some error's ocurred
+//     // {
+//     //     BIO_free_all(bio);
+//     //     LOCAL_ABORT();
+//     // }
 
     if(g_get_cipher_info)
     {

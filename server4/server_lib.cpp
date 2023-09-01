@@ -22,7 +22,6 @@
 
 static volatile sig_atomic_t keep_running = 1;
 char g_async_mode = 0;
-int g_payload = 0;
 int g_server = 0;
 SSL_CTX* g_ctx = NULL;
 
@@ -63,41 +62,41 @@ void set_certificates(const char* pem_public_file, const char* pem_private_file)
     }
 }
 
-void send_html_response(SSL* ssl, int payload_size)
-{
-    static const char* _template = "HTTP/1.1 200 OK\r\n"
-        "Content-type: text/html\r\n"
-        "\r\n"
-        "<html>\n"
-        "<body>\n"
-        "%s"
-        "</body>\n"
-        "</html>\n";
+// void send_html_response(SSL* ssl, int payload_size)
+// {
+//     static const char* _template = "HTTP/1.1 200 OK\r\n"
+//         "Content-type: text/html\r\n"
+//         "\r\n"
+//         "<html>\n"
+//         "<body>\n"
+//         "%s"
+//         "</body>\n"
+//         "</html>\n";
 
-    static char _payload[MAX_PAYLOAD + 1];
-    static char _response[MAX_PAYLOAD + 128 + 1]; //MAX_PAYLOAD + enough space for _template
+//     static char _payload[MAX_PAYLOAD + 1];
+//     static char _response[MAX_PAYLOAD + 128 + 1]; //MAX_PAYLOAD + enough space for _template
 
-    srand(clock());
+//     srand(clock());
 
-    char random_char = 'A' + (random() % 25);
+//     char random_char = 'A' + (random() % 25);
     
-    memset(_payload, random_char, payload_size);
-    _payload[payload_size] = 0;
+//     memset(_payload, random_char, payload_size);
+//     _payload[payload_size] = 0;
 
-    sprintf(_response, _template, _payload);
+//     sprintf(_response, _template, _payload);
 
-    int size = strlen(_response);
+//     int size = strlen(_response);
 
-    SSL_write(ssl, _response, size); /* send response */
-}
+//     SSL_write(ssl, _response, size); /* send response */
+// }
 
-void io_handler(SSL* ssl)
-{
-    char* request = (char*)calloc(UINT16_MAX + 1, sizeof(char));
-    int bytes = SSL_read(ssl, request, UINT16_MAX);    /* read incoming message and just ignore it*/
-    free(request);
-    send_html_response(ssl, g_payload); //Just send a 200 OK response and some pre-defined size random payload 
-}
+// void io_handler(SSL* ssl)
+// {
+//     char* request = (char*)calloc(UINT16_MAX + 1, sizeof(char));
+//     int bytes = SSL_read(ssl, request, UINT16_MAX);    /* read incoming message and just ignore it*/
+//     free(request);
+//     send_html_response(ssl, g_payload); //Just send a 200 OK response and some pre-defined size random payload 
+// }
 
 void* request_handler(void* args)
 {
@@ -109,9 +108,14 @@ void* request_handler(void* args)
     int result = 0;
     int error = 0;
 
-    while((result = SSL_accept(ssl)) != 1)
+    result = SSL_accept(ssl);
+
+    while(result != 1)
     {
         error = SSL_get_error(ssl, result);
+
+fprintf(stderr, "result = %d\n", result);
+fprintf(stderr, "error = %d\n", error);
 
         if(error == SSL_ERROR_WANT_ASYNC)
         {
@@ -130,6 +134,7 @@ void* request_handler(void* args)
 
                 if(select_result > 0 && FD_ISSET(waitfd, &waitfdset))
                 { 
+                    result = SSL_do_handshake(ssl);
                     break;
                 }
             }
@@ -140,10 +145,10 @@ void* request_handler(void* args)
         }
     }
 
-    if(result == 1 && g_payload) 
-    {
-        io_handler(ssl);
-    }
+    // if(result == 1 && g_payload) 
+    // {
+    //     io_handler(ssl);
+    // }
 
     //Change this logic
     SSL_shutdown(ssl);
@@ -181,7 +186,7 @@ void run_connection_handler()
     }
 }
 
-extern "C" int run_server(const char* port, const char* job_mode, const char* payload, const char* pem_public_file, const char* pem_private_file)
+extern "C" int run_server(const char* port, const char* job_mode, const char* pem_public_file, const char* pem_private_file)
 {
     int portnum = atoi(port);
 
@@ -199,12 +204,12 @@ extern "C" int run_server(const char* port, const char* job_mode, const char* pa
         }
     }
 
-    const char*_async = "async=";
+    const char*_async = "async";
     int async_param_size = strlen(_async);
 
     if(strncmp(_async, job_mode, async_param_size) && strcmp("sync", job_mode))
     {
-        printf("Invalid job mode %s. Use sync or async=num.\n", job_mode);
+        printf("Invalid job mode %s. Use sync or async.\n", job_mode);
         return -1;
     }
 
@@ -212,14 +217,6 @@ extern "C" int run_server(const char* port, const char* job_mode, const char* pa
     {
         printf("async mode specified but async not supported\n");
         return -1;
-    }
-
-    g_payload = atoi(payload);
-
-    if(g_payload < 0 || g_payload > MAX_PAYLOAD)
-    {
-        printf("payload size must be a positive value <= %d\n", MAX_PAYLOAD);
-        return -1;     
     }
 
     struct sockaddr_in addr;
@@ -273,7 +270,7 @@ extern "C" int run_server(const char* port, const char* job_mode, const char* pa
     if(g_async_mode)
     {
         SSL_CTX_set_mode(g_ctx, SSL_MODE_ASYNC);
-        ASYNC_init_thread(0, 0);
+        //ASYNC_init_thread(0, 0);
     }
     
     run_connection_handler();
